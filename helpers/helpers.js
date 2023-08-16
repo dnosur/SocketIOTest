@@ -6,8 +6,15 @@ const updateUserId = (db, user) => {
             db.users[index].id = user.id;
         }
     });
-}
+};
+
+const writeDbFile = (db) => {
+    fs.writeFile('db.json', JSON.stringify(db),{encoding: 'utf8'}, (err) => {
+        console.log(err);
+    });
+};
 
 module.exports = {
-    updateUserId
-}
+    updateUserId,
+    writeDbFile
+};
