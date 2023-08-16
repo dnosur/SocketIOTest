@@ -1,0 +1,21 @@
+{
+  "name": "socketiotest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "set NODE_ENV=development && nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "js-cookie": "^3.0.5",
+    "socket.io": "^4.7.2",
+    "ws": "^8.13.0"
+  }
+}
