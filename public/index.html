@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <style>
+      body { margin: 0; padding-bottom: 3rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+      #form { background: rgba(0, 0, 0, 0.15); padding: 0.25rem; position: fixed; bottom: 0; left: 0; right: 0; display: flex; height: 3rem; box-sizing: border-box; backdrop-filter: blur(10px); }
+      #input { border: none; padding: 0 1rem; flex-grow: 1; border-radius: 2rem; margin: 0.25rem; }
+      #input:focus { outline: none; }
+      #form > button { background: #333; border: none; padding: 0 1rem; margin: 0.25rem; border-radius: 3px; outline: none; color: #fff; }
+
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages > li { padding: 0.5rem 1rem; }
+      #messages > li:nth-child(odd) { background: #efefef; }
+    </style>
+  </head>
+  <body>
+    <h5 id="writing"></h5>
+    <ul id="messages"></ul>
+    <form id="form" action="">
+      <input id="input"  autocomplete="off" /><button>Send</button>
+    </form>
+
+  </body>
+</html>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+  function setCookie(name,value,days = 1) {
+    var expires = "";
+    if (days) {
+        var date = new Date();
+        date.setTime(date.getTime() + (days*24*60*60*1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+}
+
+function getCookie(name) {
+    var nameEQ = name + "=";
+    var ca = document.cookie.split(';');
+    for(var i=0;i < ca.length;i++) {
+        var c = ca[i];
+        while (c.charAt(0)==' ') c = c.substring(1,c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+    }
+    return null;
+}
+
+function eraseCookie(name) {   
+    document.cookie = name +'=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+}
+
+function updateCookie(user, chatId){
+  setCookie('user', JSON.stringify(user));
+  setCookie('chatId', chatId + '');
+}
+
+
+function showMessage(user, message){
+  let item = document.createElement('li');
+
+  let div = document.createElement('div');
+  div.style.display = 'inline-flex';
+  item.appendChild(div);
+
+  let h4User = document.createElement('h4');
+  h4User.innerText = message.user.name;
+
+  let h4Text = document.createElement('h4');
+  h4Text.style.marginLeft = '10px';
+  h4Text.innerText = message.message;
+
+  div.appendChild(h4User);
+  div.appendChild(h4Text);
+
+  if(user.name === message.user.name){
+    item.style.backgroundColor = "lightblue";
+  }
+
+  h4User.addEventListener('submit', (e) => {
+    if(h4User != user.name){
+      e.preventDefault();
+
+      
+    }
+  })
+
+  messages.appendChild(item);
+  window.scrollTo(0, document.body.scrollHeight);
+}
+</script>
+
+
+<script>
+  let socket = io();
+
+  let messages = document.getElementById('messages');
+  let form = document.getElementById('form');
+  let input = document.getElementById('input');
+
+  let writing = document.getElementById('writing');
+  
+  let chatId = parseInt(getCookie('chatId'));
+  let user = JSON.parse(getCookie('user'));
+
+  if(isNaN(chatId)){
+    chatId = 0;
+  }
+
+  updateCookie(user, chatId);
+
+  let keyDown = false;
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    chatId = parseInt(getCookie('chatId'));
+    user = JSON.parse(getCookie('user'));
+    console.log(user + ' !');
+
+    if (input.value && user) {
+      socket.emit('chat message', {message: input.value, chatId: chatId, user: user});
+      input.value = '';
+      keyDown = false;
+    }
+  });
+
+  input.addEventListener('keypress', (e) => {
+    console.log(e.keyCode);
+    socket.emit('writing', { user: user, chatId: chatId });
+  });
+
+  input.addEventListener('keyup', () => {
+    setTimeout(() => {
+      writing.innerText = '';
+    }, 3000);
+    
+    //messages.innerText = '';
+  })
+
+  socket.on('connect', () => {
+    if(user == null){
+      user = {};
+      user.name = prompt('Username:');
+      user.id = socket.id;
+
+      socket.emit('singUp', user);
+      return;
+    }
+
+    user.id = socket.id;
+    setCookie('user', JSON.stringify(user));
+
+    socket.emit('chat load', {user: user, chatId: chatId});
+  });
+
+  socket.on('singUp', (newUser) => {
+    if(newUser != null){
+      setCookie('user', JSON.stringify(newUser));
+      user = {...newUser};
+
+      console.log('singUp: ' + JSON.stringify(user));
+
+      socket.emit('chat load', {user: user, chatId: chatId});
+    }
+
+    user = null;
+  });
+
+  socket.on('auth', (value) => {
+    if(!value) return;
+
+    user = {...value};
+    chatId = 0;
+    
+    updateCookie(user, chatId);
+    socket.emit('chat load', {user: user, chatId: chatId});
+  });
+
+  socket.on('chat message', (message) => {
+    if(message.chatId == chatId){
+      showMessage(user, message);
+    }
+  });
+
+  socket.on('chat load', (chat) => {
+    if(!chat.error){
+      messages.innerHTML = '';
+
+      chatId = chat.chatId;
+      setCookie('chatId', chatId + '');
+
+      user = JSON.parse(getCookie('user'));
+      if(!user) return;
+
+      console.log(1);
+      console.log(chat);
+
+      chat.messages.forEach(message => {
+        showMessage(user, message);
+      });
+    }
+  });
+
+  socket.on('writing', (message) => {
+    //if(message.userId != socket.id && chatId == message.from.chatId){
+      writing.innerText = `${message.from.user.name} writing a message`;
+      console.log(`${message.from.user.name} writing a message`);
+    //}
+  });
+
+</script>
