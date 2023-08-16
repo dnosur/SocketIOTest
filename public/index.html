@@ -141,6 +141,8 @@ function showMessage(user, message){
   })
 
   socket.on('connect', () => {
+
+    //Если в кукки нету информации о пользователе - значит он не авторизирован
     if(user == null){
       user = {};
       user.name = prompt('Username:');
