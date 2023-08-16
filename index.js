@@ -7,7 +7,7 @@ const {Server} = require('socket.io');
 const io = new Server(server);
 
 const fs = require('fs');
-const { updateUserId } = require('./helpers/helpers');
+const { updateUserId, writeDbFile } = require('./helpers/helpers');
 
 const PORT = 3000;
 
@@ -36,7 +36,10 @@ app.get('/', (req, res, next) => {
 io.on('connection', (socket) => {
     console.log(`User with id ${socket.id} connected!'`);
 
+    //Авторизация. Вызывается после ввода имени пользователя
     socket.on('singUp', (user) => {
+
+        //Если такой пользователь есть - авторизируем его
         if(db.users.find(value => value.name === user.name)) {
             updateUserId(db, user);
             io.emit('auth', db.users[db.users.findIndex(value => value.name === user.name)]);
@@ -44,15 +47,16 @@ io.on('connection', (socket) => {
             return;
         };
 
+        //Если пользователь новый - добавляем его в базу пользователей, и в первый чат
         db.users.push(user);
         db.chats[0].users.push(user);
 
-        fs.writeFile('db.json', JSON.stringify(db),{encoding: 'utf8'}, (err) => {
-            console.log(err);
-        });
+        //Обновляем базу
+        writeDbFile(db);
         io.emit('singUp', user);
     });
 
+    //Отправка сообщения
     socket.on('chat message', (message) => {
         db.chats.forEach((chat, index) => {
             if(chat.chatId === message.chatId){
@@ -63,18 +67,18 @@ io.on('connection', (socket) => {
             }
         });
 
-        fs.writeFile('db.json', JSON.stringify(db),{encoding: 'utf8'}, (err) => {
-            console.log(err);
-        });
+        writeDbFile(db);
         io.emit('chat message', message);
     });
 
+    //Подгрузка сообщений чата, которые были отправлены ранее
     socket.on('chat load', (data) => {
-
         let found = false;
 
+        //Обновляем socket id в базе пользователей для конкретного пользователя
         updateUserId(db, data.user);
 
+        //Поиск нужного нам чата
         db.chats.forEach(chat => {
             console.log(chat.users.find(value => value.name == data.user.name));
             if(chat.chatId == data.chatId && chat.users.find(value => value.name == data.user.name)){
@@ -86,6 +90,7 @@ io.on('connection', (socket) => {
         if(!found) socket.emit('chat load', {error: 'Chat not found!'});
     });
 
+    //Реализация вывода сообщения '{user} печатает'
     socket.on('writing', (from) => {
         io.emit('writing', { userId: socket.id, from: from });
     });
